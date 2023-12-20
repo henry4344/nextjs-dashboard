@@ -21,6 +21,17 @@ const FormSchema = z.object({
   date: z.string(),
 });
 
+const customerFormSchema = z.object({
+  id: z.string(),
+  name: z.string({
+    invalid_type_error: 'Please give a name to the customer.',
+  }),
+  email: z.string({
+    invalid_type_error: 'Please enter an email address for the customer',
+  }),
+  image_url: z.string(),
+});
+
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 
 // This is temporary until @types/react-dom is updated
@@ -115,6 +126,66 @@ export async function deleteInvoice(id: string) {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
     revalidatePath('/dashboard/invoices');
     return { message: 'Deleted Invoice' };
+  } catch (error) {
+    console.error(error);
+    return { message: 'Database Error: Failed to Delete Invoice' };
+  }
+}
+
+const UpdateCustomer = customerFormSchema.omit({ id: true, image_url: true });
+
+// This is temporary until @types/react-dom is updated
+export type CustomerState = {
+  errors?: {
+    name?: string[];
+    email?: string[];
+  };
+  message?: string | null;
+};
+
+export async function updateCustomer(
+  id: string,
+  prevState: CustomerState,
+  formData: FormData,
+) {
+  const validatedFields = UpdateCustomer.safeParse({
+    name: formData.get('name'),
+    email: formData.get('email'),
+  });
+
+  // If form validation fails, return errors early. Otherwise, continue.
+  if (!validatedFields.success) {
+    console.log(validatedFields.error);
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Edit Customer.',
+    };
+  }
+
+  const { name, email } = validatedFields.data;
+  console.log(name, email);
+
+  try {
+    await sql`
+          UPDATE customers
+          SET name = ${name}, email = ${email}
+          WHERE id = ${id}
+          `;
+  } catch (error) {
+    console.error(error);
+    return { message: 'Database Error: Faled to Update Customer' };
+  }
+
+  revalidatePath('/dashboard/customers');
+  redirect('/dashboard/customers');
+}
+
+export async function deleteCustomer(id: string) {
+  // throw new Error('Failed to Delete Invoice');
+  try {
+    await sql`DELETE FROM customers WHERE id = ${id}`;
+    revalidatePath('/dashboard/customers');
+    return { message: 'Deleted Customer' };
   } catch (error) {
     console.error(error);
     return { message: 'Database Error: Failed to Delete Invoice' };
